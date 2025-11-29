@@ -268,7 +268,7 @@ def version():
     """
     Show version.
     """
-    typer.echo("Nano PDF v0.1.0")
+    typer.echo("Nano PDF v0.2.0")
 
 if __name__ == "__main__":
     app()
