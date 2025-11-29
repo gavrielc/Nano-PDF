@@ -140,18 +140,50 @@ def batch_replace_pages(original_pdf_path: str, replacements: dict[int, str], ou
             original_page = reader.pages[i]
             original_width = original_page.mediabox.width
             original_height = original_page.mediabox.height
-            
+
             new_pdf_path = replacements[page_num]
             new_reader = PdfReader(new_pdf_path)
             new_page = new_reader.pages[0]
-            
+
             # Resize new page to match original dimensions
             new_page.scale_to(width=float(original_width), height=float(original_height))
-            
+
             writer.add_page(new_page)
         else:
             # Keep original page
             writer.add_page(reader.pages[i])
+
+    with open(output_pdf_path, 'wb') as f:
+        writer.write(f)
+
+def insert_page(original_pdf_path: str, new_page_pdf_path: str, after_page: int, output_pdf_path: str):
+    """
+    Inserts a new page into the PDF after the specified page number.
+    after_page: 0 to insert at the beginning, or page number (1-indexed) to insert after.
+    """
+    reader = PdfReader(original_pdf_path)
+    writer = PdfWriter()
+
+    # Get dimensions from the first page as reference
+    reference_page = reader.pages[0]
+    ref_width = reference_page.mediabox.width
+    ref_height = reference_page.mediabox.height
+
+    # Load the new page
+    new_reader = PdfReader(new_page_pdf_path)
+    new_page = new_reader.pages[0]
+    new_page.scale_to(width=float(ref_width), height=float(ref_height))
+
+    # Insert at beginning
+    if after_page == 0:
+        writer.add_page(new_page)
+
+    # Add all original pages, inserting the new one at the right position
+    for i in range(len(reader.pages)):
+        writer.add_page(reader.pages[i])
+        # Insert after this page if it matches
+        if i + 1 == after_page:
+            writer.add_page(new_page)
 
     with open(output_pdf_path, 'wb') as f:
         writer.write(f)

@@ -11,7 +11,8 @@
 A CLI tool to edit PDF slides using natural language prompts, powered by Google's **Gemini 3 Pro Image** ("Nano Banana") model.
 
 ## Features
-*   **Natural Language Editing**: "Make the header blue", "Change Q4 2024 to Q1 2025", "Change the chart to a bar graph".
+*   **Natural Language Editing**: "Update the graph to include data from 2025", "Change the chart to a bar graph".
+*   **Add New Slides**: Generate entirely new slides that match your deck's visual style.
 *   **Non-Destructive**: Preserves the searchable text layer of your PDF using OCR re-hydration.
 *   **Multi-page & Parallel**: Edit multiple pages in a single command with concurrent processing.
 
@@ -66,11 +67,25 @@ nano-pdf edit my_deck.pdf \
   10 "Fix typo in footer"
 ```
 
+### Add New Slides
+Insert a new AI-generated slide into your deck:
+
+```bash
+# Add a title slide at the beginning
+nano-pdf add my_deck.pdf 0 "Title slide with 'Q3 2025 Review'"
+
+# Add a slide after page 5
+nano-pdf add my_deck.pdf 5 "Summary slide with key takeaways as bullet points"
+```
+
+The new slide will automatically match the visual style of your existing slides and uses document context by default for better relevance.
+
 ### Options
-*   `--use-context`: Include the full text of the PDF as context for the model. (Disabled by default to prevent hallucinations).
+*   `--use-context` / `--no-use-context`: Include the full text of the PDF as context for the model. Disabled by default for `edit`, **enabled by default for `add`**. Use `--no-use-context` to disable.
 *   `--style-refs "1,5"`: Manually specify which pages to use as style references.
 *   `--output "new.pdf"`: Specify the output filename.
 *   `--resolution "4K"`: Image resolution - "4K" (default), "2K", or "1K". Higher quality = slower processing.
+*   `--disable-google-search`: Prevents the model from using Google Search to find information before generating (enabled by default).
 
 ## Examples
 
@@ -102,6 +117,21 @@ nano-pdf edit presentation.pdf \
   5 "Update the chart colors to match the theme" \
   8 "Add the company logo in the bottom right" \
   --use-context
+```
+
+### Adding New Slides
+```bash
+# Add a new agenda slide at the beginning
+nano-pdf add quarterly_report.pdf 0 "Agenda slide with: Overview, Financial Results, Q4 Outlook"
+```
+
+### Using Google Search
+```bash
+# Google Search is enabled by default - the model can look up current information
+nano-pdf edit deck.pdf 5 "Update the market share data to latest figures"
+
+# Disable Google Search if you want the model to only use provided context
+nano-pdf add deck.pdf 3 "Add a summary slide" --disable-google-search
 ```
 
 ## Requirements
@@ -138,7 +168,6 @@ Set your API key as an environment variable:
 ```bash
 export GEMINI_API_KEY="your_key_here"
 ```
-For permanent setup, add this to your `~/.bashrc` or `~/.zshrc`.
 
 ### "Gemini API Error: PAID API key required" error
 Gemini 3 Pro Image requires a paid API tier. Visit [Google AI Studio](https://aistudio.google.com/api-keys) to enable billing on your project.
@@ -151,8 +180,6 @@ The tool uses Tesseract OCR to restore searchable text. For best results, ensure
 
 ### Pages are processing slowly
 - Use `--resolution "2K"` or `--resolution "1K"` for faster processing
-- The tool processes pages in parallel (max 10 concurrent), but API rate limits may apply
-- Each page requires an API call to Gemini, which can take 5-15 seconds
 
 ## Running from Source
 
