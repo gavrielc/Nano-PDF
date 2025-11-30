@@ -28,6 +28,10 @@ nano-pdf edit linkedin-deck.pdf 1 "Change the tagline in the logo to 'Cringe pos
 
 *[Original deck](https://www.peterfisk.com/wp-content/uploads/2025/10/LinkedIn-Pitch-Deck.-2004.-Series-B-1.pdf) from LinkedIn's 2004 Series B pitch | [Edited deck](https://github.com/gavrielc/Nano-PDF/raw/main/assets/edited_LinkedIn-Pitch-Deck.-2004.-Series-B-1.pdf)*
 
+**Text remains selectable** - OCR re-hydration preserves the text layer:
+
+![Text selection demo](https://raw.githubusercontent.com/gavrielc/Nano-PDF/main/assets/text-selection-demo.png)
+
 ## How It Works
 
 Nano PDF uses Gemini 3 Pro Image (aka Nano Banana) and PDF manipulation to enable quick edits of PDFs with natural language editing:
