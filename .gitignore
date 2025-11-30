@@ -45,6 +45,7 @@ Thumbs.db
 # Project specific
 *.pdf
 !sample_deck.pdf
+!assets/*.pdf
 debug_*.png
 debug_*.txt
 temp_page_*.pdf

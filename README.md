@@ -16,6 +16,18 @@ A CLI tool to edit PDF slides using natural language prompts, powered by Google'
 *   **Non-Destructive**: Preserves the searchable text layer of your PDF using OCR re-hydration.
 *   **Multi-page & Parallel**: Edit multiple pages in a single command with concurrent processing.
 
+## Example
+
+```bash
+nano-pdf edit linkedin-deck.pdf 1 "Change the tagline in the logo to 'Cringe posts from work colleagues'"
+```
+
+| Before | After |
+|--------|-------|
+| ![Before](https://raw.githubusercontent.com/gavrielc/Nano-PDF/main/assets/linkedin-before.png) | ![After](https://raw.githubusercontent.com/gavrielc/Nano-PDF/main/assets/linkedin-after.png) |
+
+*[Original deck](https://www.peterfisk.com/wp-content/uploads/2025/10/LinkedIn-Pitch-Deck.-2004.-Series-B-1.pdf) from LinkedIn's 2004 Series B pitch | [Edited deck](https://github.com/gavrielc/Nano-PDF/raw/main/assets/edited_LinkedIn-Pitch-Deck.-2004.-Series-B-1.pdf)*
+
 ## How It Works
 
 Nano PDF uses Gemini 3 Pro Image (aka Nano Banana) and PDF manipulation to enable quick edits of PDFs with natural language editing:

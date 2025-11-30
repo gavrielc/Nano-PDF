@@ -102,7 +102,7 @@ def edit(
             target_image = pdf_utils.render_page_as_image(str(input_path), page_num)
             
             # Generate
-            generated_image = ai_utils.generate_edited_slide(
+            generated_image, response_text = ai_utils.generate_edited_slide(
                 target_image=target_image,
                 style_reference_images=style_images,
                 full_text_context=full_text,
@@ -110,7 +110,11 @@ def edit(
                 resolution=resolution,
                 enable_search=not disable_google_search
             )
-            
+
+            # Print model's text response if any
+            if response_text:
+                typer.echo(f"Model response for page {page_num}: {response_text}")
+
             # Re-hydrate
             temp_pdf_file = tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False)
             temp_pdf = temp_pdf_file.name
@@ -230,7 +234,7 @@ def add(
     # Generate the new slide
     typer.echo("Generating new slide with AI...")
     try:
-        generated_image = ai_utils.generate_new_slide(
+        generated_image, response_text = ai_utils.generate_new_slide(
             style_reference_images=style_images,
             user_prompt=prompt,
             full_text_context=full_text,
@@ -240,6 +244,10 @@ def add(
     except Exception as e:
         typer.echo(f"Error generating slide: {e}")
         raise typer.Exit(code=1)
+
+    # Print model's text response if any
+    if response_text:
+        typer.echo(f"Model response: {response_text}")
 
     # Re-hydrate to PDF
     typer.echo("Converting to PDF with text layer...")
