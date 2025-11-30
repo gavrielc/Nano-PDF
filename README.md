@@ -19,7 +19,7 @@ A CLI tool to edit PDF slides using natural language prompts, powered by Google'
 ## Example
 
 ```bash
-nano-pdf edit linkedin-deck.pdf 1 "Change the tagline in the logo to 'Cringe posts from work colleagues'"
+nano-pdf edit linkedin-deck.pdf 1 "Change the tagline in the logo to 'Cringe posts from work colleagues' and update the date"
 ```
 
 | Before | After |
