@@ -164,8 +164,7 @@ def edit(
 @app.command()
 def add(
     pdf_path: str = typer.Argument(..., help="Path to the PDF file"),
-    after_page: int = typer.Argument(..., help="Insert after this page number (0 for beginning)"),
-    prompt: str = typer.Argument(..., help="Description of the new slide to create"),
+    adds: List[str] = typer.Argument(..., help="Pairs of 'AfterPage Prompt' (e.g. 0 'Title slide' 2 'Summary slide')"),
     style_refs: Optional[str] = typer.Option(None, help="Comma-separated list of reference page numbers for style (e.g. '1,2'). Defaults to first page."),
     use_context: bool = typer.Option(True, help="Include full PDF text as context (enabled by default for better slide generation)"),
     output: Optional[str] = typer.Option(None, help="Output path for the PDF. Defaults to 'edited_<filename>'"),
@@ -173,8 +172,8 @@ def add(
     disable_google_search: bool = typer.Option(False, help="Disable Google Search (enabled by default)")
 ):
     """
-    Add a new slide to a PDF using AI generation.
-    Usage: nano-pdf add deck.pdf 0 "Title slide with 'Welcome to Q3 Review'"
+    Add new slide(s) to a PDF using AI generation.
+    Usage: nano-pdf add deck.pdf 0 "Title slide" 2 "Summary slide"
     """
     # Check system dependencies first
     try:
@@ -191,13 +190,37 @@ def add(
     if not output:
         output = f"edited_{input_path.name}"
 
-    # Validate after_page
-    total_pages = pdf_utils.get_page_count(str(input_path))
-    if after_page < 0 or after_page > total_pages:
-        typer.echo(f"Error: after_page must be between 0 and {total_pages}. Use 0 to insert at the beginning.")
+    # Parse Adds
+    if len(adds) % 2 != 0:
+        typer.echo("Error: Adds must be pairs of 'AfterPage Prompt'.")
         raise typer.Exit(code=1)
 
-    typer.echo(f"Adding new slide to {pdf_path} after page {after_page}...")
+    parsed_adds = []
+    for i in range(0, len(adds), 2):
+        try:
+            after_page = int(adds[i])
+            prompt = adds[i+1]
+            parsed_adds.append((after_page, prompt))
+        except ValueError:
+            typer.echo(f"Error: Invalid page number '{adds[i]}'")
+            raise typer.Exit(code=1)
+
+    # Validate after_page values
+    # Sort by after_page to validate sequentially (pages added earlier increase the valid range for later ones)
+    total_pages = pdf_utils.get_page_count(str(input_path))
+    sorted_adds = sorted(parsed_adds, key=lambda x: x[0])
+
+    for idx, (after_page, _) in enumerate(sorted_adds):
+        # Each previously added page increases the max valid position by 1
+        max_valid_position = total_pages + idx
+        if after_page < 0 or after_page > max_valid_position:
+            typer.echo(f"Error: Invalid after_page value {after_page}. Must be between 0 and {max_valid_position} (considering {idx} page(s) added before it).")
+            raise typer.Exit(code=1)
+
+    # Use sorted order for processing
+    parsed_adds = sorted_adds
+
+    typer.echo(f"Adding {len(parsed_adds)} new slide(s) to {pdf_path}...")
 
     # Extract text context
     full_text = ""
@@ -231,45 +254,86 @@ def add(
         except Exception as e:
             typer.echo(f"Warning: Could not render Page 1: {e}")
 
-    # Generate the new slide
-    typer.echo("Generating new slide with AI...")
-    try:
-        generated_image, response_text = ai_utils.generate_new_slide(
-            style_reference_images=style_images,
-            user_prompt=prompt,
-            full_text_context=full_text,
-            resolution=resolution,
-            enable_search=not disable_google_search
-        )
-    except Exception as e:
-        typer.echo(f"Error generating slide: {e}")
+    # Generate new slides (Parallel)
+    typer.echo(f"Generating {len(parsed_adds)} slide(s) with AI in parallel...")
+    generated_slides = {}  # after_page -> temp_pdf_path
+    temp_files = []
+
+    def process_single_slide(after_page: int, prompt_text: str):
+        typer.echo(f"Starting slide for insertion after page {after_page}...")
+        try:
+            generated_image, response_text = ai_utils.generate_new_slide(
+                style_reference_images=style_images,
+                user_prompt=prompt_text,
+                full_text_context=full_text,
+                resolution=resolution,
+                enable_search=not disable_google_search
+            )
+
+            # Print model's text response if any
+            if response_text:
+                typer.echo(f"Model response for slide after page {after_page}: {response_text}")
+
+            # Re-hydrate to PDF
+            temp_pdf_file = tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False)
+            temp_pdf = temp_pdf_file.name
+            temp_pdf_file.close()
+            pdf_utils.rehydrate_image_to_pdf(generated_image, temp_pdf)
+
+            typer.echo(f"Finished slide for insertion after page {after_page}")
+            return (after_page, temp_pdf)
+        except Exception as e:
+            typer.echo(f"Error generating slide for insertion after page {after_page}: {e}")
+            return None
+
+    completed_count = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        futures = [executor.submit(process_single_slide, after_page, prompt) for after_page, prompt in parsed_adds]
+
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result:
+                after_page, temp_pdf = result
+                generated_slides[after_page] = temp_pdf
+                temp_files.append(temp_pdf)
+            completed_count += 1
+            typer.echo(f"Progress: {completed_count}/{len(parsed_adds)} slides completed")
+
+    if not generated_slides:
+        typer.echo("No slides were successfully generated.")
         raise typer.Exit(code=1)
 
-    # Print model's text response if any
-    if response_text:
-        typer.echo(f"Model response: {response_text}")
-
-    # Re-hydrate to PDF
-    typer.echo("Converting to PDF with text layer...")
-    temp_pdf_file = tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False)
-    temp_pdf = temp_pdf_file.name
-    temp_pdf_file.close()
-
+    # Insert all slides into the PDF
+    typer.echo(f"\nInserting {len(generated_slides)} slide(s) into PDF...")
     try:
-        pdf_utils.rehydrate_image_to_pdf(generated_image, temp_pdf)
+        # Sort by after_page in ASCENDING order for sequential additions
+        # Each insertion increases the page count, allowing the next sequential position to exist
+        sorted_adds = sorted(generated_slides.items(), key=lambda x: x[0], reverse=False)
 
-        # Insert into the PDF
-        typer.echo("Inserting slide into PDF...")
-        pdf_utils.insert_page(str(input_path), temp_pdf, after_page, output)
+        current_pdf = str(input_path)
+        for i, (after_page, temp_pdf) in enumerate(sorted_adds):
+            if i == len(sorted_adds) - 1:
+                # Last insertion, write to final output
+                pdf_utils.insert_page(current_pdf, temp_pdf, after_page, output)
+            else:
+                # Intermediate insertion, write to temp file
+                temp_intermediate = tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False)
+                intermediate_path = temp_intermediate.name
+                temp_intermediate.close()
+                temp_files.append(intermediate_path)
+
+                pdf_utils.insert_page(current_pdf, temp_pdf, after_page, intermediate_path)
+                current_pdf = intermediate_path
     except Exception as e:
-        typer.echo(f"Error creating PDF: {e}")
+        typer.echo(f"Error inserting slides: {e}")
         raise typer.Exit(code=1)
     finally:
         # Cleanup
-        if Path(temp_pdf).exists():
-            Path(temp_pdf).unlink()
+        for f in temp_files:
+            if Path(f).exists():
+                Path(f).unlink()
 
-    typer.echo(f"Done! New slide added after page {after_page}. Saved to {output}")
+    typer.echo(f"Done! Added {len(generated_slides)} new slide(s). Saved to {output}")
 
 @app.command()
 def version():
